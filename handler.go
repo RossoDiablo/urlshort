@@ -46,7 +46,7 @@ type pathInfo []struct {
 	Url  string `yaml:"url"`
 }
 
-func YAMLHandler(yml []byte, fallback http.Handler) (http.HandlerFunc, error) {
+func YAMLparser(yml []byte) (pathInfo, error) {
 	bytesReader := bytes.NewReader(yml)
 	decoder := yaml.NewDecoder(bytesReader)
 	var p pathInfo
@@ -54,9 +54,22 @@ func YAMLHandler(yml []byte, fallback http.Handler) (http.HandlerFunc, error) {
 	if err != nil {
 		return nil, err
 	}
+	return p, nil
+}
+
+func pathsToMap(paths pathInfo) map[string]string {
 	m := make(map[string]string)
-	for _, path := range p {
+	for _, path := range paths {
 		m[path.Path] = path.Url
 	}
+	return m
+}
+
+func YAMLHandler(yml []byte, fallback http.Handler) (http.HandlerFunc, error) {
+	paths, err := YAMLparser(yml)
+	if err != nil {
+		return nil, err
+	}
+	m := pathsToMap(paths)
 	return MapHandler(m, fallback), nil
 }
