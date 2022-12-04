@@ -1,7 +1,7 @@
 package urlshort
 
 import (
-	"bytes"
+	"encoding/json"
 	"net/http"
 
 	"gopkg.in/yaml.v3"
@@ -24,33 +24,23 @@ func MapHandler(pathsToUrls map[string]string, fallback http.Handler) http.Handl
 	}
 }
 
-// YAMLHandler will parse the provided YAML and then return
-// an http.HandlerFunc (which also implements http.Handler)
-// that will attempt to map any paths to their corresponding
-// URL. If the path is not provided in the YAML, then the
-// fallback http.Handler will be called instead.
-//
-// YAML is expected to be in the format:
-//
-//   - path: /some-path
-//     url: https://www.some-url.com/demo
-//
-// The only errors that can be returned all related to having
-// invalid YAML data.
-//
-// See MapHandler to create a similar http.HandlerFunc via
-// a mapping of paths to urls.
-
 type pathInfo []struct {
-	Path string `yaml:"path"`
-	Url  string `yaml:"url"`
+	Path string `yaml:"path" json:"path"`
+	Url  string `yaml:"url" json:"url"`
 }
 
-func YAMLparser(yml []byte) (pathInfo, error) {
-	bytesReader := bytes.NewReader(yml)
-	decoder := yaml.NewDecoder(bytesReader)
+func parseYAML(yamlData []byte) (pathInfo, error) {
 	var p pathInfo
-	err := decoder.Decode(&p)
+	err := yaml.Unmarshal(yamlData, &p)
+	if err != nil {
+		return nil, err
+	}
+	return p, nil
+}
+
+func parseJSON(jsonData []byte) (pathInfo, error) {
+	var p pathInfo
+	err := json.Unmarshal(jsonData, &p)
 	if err != nil {
 		return nil, err
 	}
@@ -65,8 +55,47 @@ func pathsToMap(paths pathInfo) map[string]string {
 	return m
 }
 
-func YAMLHandler(yml []byte, fallback http.Handler) (http.HandlerFunc, error) {
-	paths, err := YAMLparser(yml)
+// YAMLHandler will parse the provided YAML and then return
+// an http.HandlerFunc (which also implements http.Handler)
+// that will attempt to map any paths to their corresponding
+// URL. If the path is not provided in the YAML, then the
+// fallback http.Handler will be called instead.
+//
+// YAML is expected to be in the format:
+//
+//   - path: /some-path
+//     url: https://www.some-url.com/demo
+//
+// The only errors that can be returned all related to having
+// invalid YAML data.
+func YAMLHandler(yamlData []byte, fallback http.Handler) (http.HandlerFunc, error) {
+	paths, err := parseYAML(yamlData)
+	if err != nil {
+		return nil, err
+	}
+	m := pathsToMap(paths)
+	return MapHandler(m, fallback), nil
+}
+
+// JSONHandler will parse the provided JSON and then return
+// an http.HandlerFunc (which also implements http.Handler)
+// that will attempt to map any paths to their corresponding
+// URL. If the path is not provided in the JSON, then the
+// fallback http.Handler will be called instead.
+//
+// JSON is expected to be in the format:
+//
+//		[
+//			{
+//	    		"path": "/some-path"
+//	    		"url": "https://www.some-url.com/demo"
+//			}
+//		]
+//
+// The only errors that can be returned all related to having
+// invalid JSON data.
+func JSONHandler(jsonData []byte, fallback http.Handler) (http.HandlerFunc, error) {
+	paths, err := parseJSON(jsonData)
 	if err != nil {
 		return nil, err
 	}

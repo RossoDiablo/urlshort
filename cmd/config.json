@@ -1,0 +1,10 @@
+[
+    {
+      "path": "/urlshort-godoc",
+      "url": "https://godoc.org/github.com/gophercises/urlshort"
+    },
+    {
+      "path": "/json-godoc",
+      "url": "https://pkg.go.dev/encoding/json@go1.19.3"
+    }
+  ]
