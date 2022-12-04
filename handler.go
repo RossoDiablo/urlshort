@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/boltdb/bolt"
 	"gopkg.in/yaml.v3"
 )
 
@@ -17,7 +18,7 @@ func MapHandler(pathsToUrls map[string]string, fallback http.Handler) http.Handl
 	return func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.Path
 		if dest, ok := pathsToUrls[path]; ok {
-			http.Redirect(w, r, dest, http.StatusFound)
+			http.Redirect(w, r, dest, http.StatusPermanentRedirect)
 			return
 		}
 		fallback.ServeHTTP(w, r)
@@ -101,4 +102,32 @@ func JSONHandler(jsonData []byte, fallback http.Handler) (http.HandlerFunc, erro
 	}
 	m := pathsToMap(paths)
 	return MapHandler(m, fallback), nil
+}
+
+// DBHandler will use the provided BoltDB and then return
+// an http.HandlerFunc (which also implements http.Handler)
+// that will attempt to map any paths to their corresponding
+// URL. If the path is not provided in the DB, then the
+// fallback http.Handler will be called instead.
+// There is a test file TestDB.db, which stores test data:
+//
+//	/bolt : https://github.com/boltdb/bolt#opening-a-database
+//	/bolt-godoc : https://pkg.go.dev/github.com/boltdb/bolt#Open
+func DBHandler(db *bolt.DB, fallback http.Handler) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var path string
+		err := db.View(func(tx *bolt.Tx) error {
+			b := tx.Bucket([]byte("paths"))
+			val := b.Get([]byte(r.URL.Path))
+			if val != nil {
+				path = string(val)
+			}
+			return nil
+		})
+		if err == nil && path != "" {
+			http.Redirect(w, r, path, http.StatusPermanentRedirect)
+			return
+		}
+		fallback.ServeHTTP(w, r)
+	}
 }
